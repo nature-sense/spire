@@ -1,0 +1,27 @@
+{
+  "name": "@spire/vsc-bridge-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that bridges to VS Code via IPC socket",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --outDir dist",
+    "watch": "tsc -watch -p tsconfig.json --outDir dist",
+    "clean": "rm -rf dist",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "spire-vsc-bridge",
+  "displayName": "VSC Bridge",
+  "description": "Exposes VS Code APIs via IPC socket for MCP integration",
+  "version": "0.1.0",
+  "publisher": "spire",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "spire-vsc-bridge.start",
+        "title": "VSC Bridge: Start"
+      },
+      {
+        "command": "spire-vsc-bridge.stop",
+        "title": "VSC Bridge: Stop"
+      },
+      {
+        "command": "spire-vsc-bridge.status",
+        "title": "VSC Bridge: Status"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --outDir dist",
+    "watch": "tsc -watch -p tsconfig.json --outDir dist",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

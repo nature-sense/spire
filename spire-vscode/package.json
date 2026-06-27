@@ -1,0 +1,197 @@
+{
+  "name": "spire-vscode",
+  "publisher": "spire-team",
+  "displayName": "Spire — AI Coding Assistant",
+  "description": "Build upward with AI. DeepSeek-powered coding assistant.",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "deepseek",
+    "ai",
+    "coding-assistant",
+    "chat",
+    "vscode"
+  ],
+  "activationEvents": [
+    "onView:spireSidebar"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "spire-sidebar",
+          "title": "Spire",
+          "icon": "resources/spire-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "spire-sidebar": [
+        {
+          "id": "spireSidebar",
+          "name": "Spire",
+          "type": "webview"
+        },
+        {
+          "id": "spireMCPDashboard",
+          "name": "MCP Dashboard",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "spire.openChat",
+        "title": "Spire: Open Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "spire.clearHistory",
+        "title": "Spire: Clear Chat History",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "spire.initMemoryBank",
+        "title": "Spire: Initialize Memory Bank",
+        "icon": "$(database)"
+      },
+      {
+        "command": "spire.loadContext",
+        "title": "Spire: Load Context",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "spire.setApiKey",
+        "title": "Spire: Set API Key",
+        "icon": "$(key)"
+      },
+      {
+        "command": "spire.showMCPDashboard",
+        "title": "Spire: Show MCP Dashboard",
+        "icon": "$(circuit-board)"
+      },
+      {
+        "command": "spire.mcpRestartServer",
+        "title": "Spire: Restart MCP Server",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "spire.mcpReloadConfig",
+        "title": "Spire: Reload MCP Configuration",
+        "icon": "$(sync)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "spire.clearHistory",
+          "when": "view == spireSidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "spire.loadContext",
+          "when": "view == spireSidebar",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Spire",
+      "properties": {
+        "spire.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "DeepSeek API Key"
+        },
+        "spire.model": {
+          "type": "string",
+          "default": "deepseek-chat",
+          "enum": [
+            "deepseek-chat",
+            "deepseek-coder",
+            "deepseek-v4-flash",
+            "deepseek-v4-pro"
+          ],
+          "description": "DeepSeek model to use"
+        },
+        "spire.enableThinking": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable DeepSeek V4's native thinking (reasoning) capability"
+        },
+        "spire.reasoningEffort": {
+          "type": "string",
+          "default": "medium",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "description": "DeepSeek V4 reasoning effort level"
+        },
+        "spire.disableThinking": {
+          "type": "boolean",
+          "default": false,
+          "description": "[Deprecated] Use enableThinking instead"
+        },
+        "spire.temperature": {
+          "type": "number",
+          "default": 0.7,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Temperature for response generation"
+        },
+        "spire.maxTokens": {
+          "type": "number",
+          "default": 8192,
+          "minimum": 1,
+          "maximum": 16384,
+          "description": "Maximum tokens in response"
+        },
+        "spire.useMemoryBank": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Memory Bank context loading"
+        },
+        "spire.useClineRules": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Cline rules context loading"
+        },
+        "spire.workspaceRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Override the project root directory for Memory Bank, rules, and context detection. Leave empty to use the VS Code workspace root."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --allow-missing-repository",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/server-filesystem": "^2026.1.14",
+    "@modelcontextprotocol/server-github": "^2025.4.8",
+    "marked": "^12.0.2",
+    "minimatch": "^10.2.5",
+    "vscode-as-mcp-server": "^0.0.13"
+  }
+}

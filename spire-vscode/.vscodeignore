@@ -1,0 +1,10 @@
+.vscode/**
+.vscode-test/**
+src/**
+.spire/**
+memory-bank/**
+.gitignore
+tsconfig.json
+**/*.ts
+**/*.map
+test-node.js

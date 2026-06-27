@@ -1,0 +1,49 @@
+# --- Dependencies ---
+node_modules/
+
+# --- Database ---
+data/graph.db/
+*.db
+
+# --- Build outputs ---
+dist/
+out/
+build/
+*.vsix
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
+
+# --- Environment & secrets ---
+.env
+.env.local
+.spire/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+
+# --- Socket / IPC ---
+*.sock
+
+# --- IDE ---
+.vscode-test/
+.idea/
+*.swp
+*.swo
+
+# --- Gradle / JVM (neo4j-mcp) ---
+.gradle/
+.kotlin/
+.graph-memory/
+local.properties
+*.class
+*.jar
+*.war
+
+# --- Test / temp ---
+:memory:
+
+# --- TypeScript ---
+*.tsbuildinfo

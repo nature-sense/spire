@@ -1,0 +1,20 @@
+{
+  "name": "spire-vsc-bridge-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/mcp-server",
+    "packages/vscode-extension"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "watch": "npm run watch --workspaces",
+    "clean": "npm run clean --workspaces",
+    "install:extension": "./scripts/install-extension.sh",
+    "package:extension": "cd packages/vscode-extension && npx vsce package --allow-missing-repository",
+
+    "format": "prettier --write \"packages/*/src/**/*.ts\""
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

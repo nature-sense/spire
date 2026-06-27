@@ -1,0 +1,31 @@
+{
+  "name": "graph-memory-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for semantic graph memory using SparrowDB",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && cp -r src/viewer/static dist/viewer/static",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "sparrowdb": "latest",
+    "tree-sitter-python": "^0.25.0",
+    "web-tree-sitter": "^0.26.9",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "graph",
+    "memory",
+    "sparrowdb"
+  ],
+  "license": "MIT"
+}
