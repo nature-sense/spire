@@ -16,8 +16,7 @@ spire/
     ├── graph-memory/        # Persistent graph memory (SparrowDB)
     ├── mcp-search/          # Codebase search tools
     ├── mcp-process/         # Process management tools
-    ├── mcp-git/             # Git operations tools
-    └── neo4j-mcp/           # Neo4j graph database MCP server (Kotlin)
+    └── mcp-git/             # Git operations tools
 ```
 
 ## Key Features

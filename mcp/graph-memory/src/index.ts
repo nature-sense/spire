@@ -17,7 +17,7 @@
  *   summarize      — Get an aggregate summary of the knowledge graph
  *
  * Environment variables:
- *   DB_PATH   — SparrowDB database file path (default: ./data/graph.db)
+ *   DB_PATH   — SparrowDB database file path (default: <cwd>/.spire/graph-memory)
  *   LOG_LEVEL — Logging verbosity (default: info)
  */
 
@@ -32,11 +32,14 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { mkdirSync, existsSync } from 'fs';
-import { dirname } from 'path';
+import { dirname, resolve } from 'path';
 import { PythonImporter } from './importers/pythonImporter.js';
+import { TypeScriptImporter } from './importers/typescriptImporter.js';
 import { handleImportFile } from './tools/importFileHelper.js';
 import { ViewerServer } from './viewer/index.js';
 import { setDb } from './viewer/routes.js';
+import { indexNode, removeFromIndex, semanticSearch, backfillIndex, initializeOrama } from './services/orama-service.js';
+import { initializeEmbedder } from './services/embedding-service.js';
 
 // ---------------------------------------------------------------------------
 // Logging helpers — writes to stderr so stdout stays clean for MCP protocol
@@ -575,15 +578,35 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: 'semantic_search',
+      description:
+        'Search the knowledge graph by semantic meaning. Finds concepts related to the query via embedding similarity. Use this for natural language queries or when unsure of the exact concept name.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Natural language search query',
+          },
+          limit: {
+            type: 'integer',
+            description: 'Maximum number of results to return',
+            default: 10,
+          },
+        },
+        required: ['query'],
+      },
+    },
+    {
       name: 'import_file',
       description:
-        'Import a Python file into the graph, extracting functions, classes, methods, and imports as typed nodes and relationships.',
+        'Import a Python, C/C++, Dart, TypeScript, or Markdown source file into the graph, extracting functions, classes, structs, enums, namespaces, imports, and markdown sections as typed nodes and relationships. Supports .py, .cpp, .cc, .cxx, .hpp, .h, .dart, .md, .ts, .tsx files.',
       inputSchema: {
         type: 'object',
         properties: {
           file_path: {
             type: 'string',
-            description: 'Path to the Python file to import',
+            description: 'Path to the Python, C, C++, or Dart source file to import',
           },
         },
         required: ['file_path'],
@@ -635,6 +658,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'get_schema':
         return await handleGetSchema(args);
  
+      case 'semantic_search':
+        return await handleSemanticSearch(args);
+
       case 'import_file':
         return await handleImportFile(db, log, cypherStr, propsToCypher, args);     default:
         return {
@@ -729,6 +755,11 @@ function handleRemember(args: Record<string, unknown>) {
     const result = db.execute(createCypher);
     const entity = result.rows[0] ?? {};
 
+    // Index for semantic search (fire-and-forget)
+    indexNode({ id, name: concept, details, category }).catch((err) =>
+      log('warn', `Failed to index "${concept}":`, err)
+    );
+
     // If related_to was specified, ensure target node exists and create relationship
     if (related_to) {
       const targetId = toSlug(related_to);
@@ -818,16 +849,43 @@ function handleRecall(args: Record<string, unknown>) {
     const result = db.execute(query);
 
     if (result.rows.length === 0) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ message: `Concept "${concept}" not found` }, null, 2),
-          },
-        ],
-      };
+      // Try semantic search as fallback
+      return semanticSearch(concept, 1).then((hits) => {
+        if (hits.length > 0 && hits[0].id) {
+          const fallbackId = cypherStr(hits[0].id);
+          const fbQuery = "MATCH (n:Entity {id: '" + fallbackId + "'})" +
+            " RETURN n.id as id, n.name as name, n.details as details," +
+            " n.category as category, n.type as type," +
+            " n.source as source, n.version as version," +
+            " n.valid_from as valid_from, n.valid_to as valid_to," +
+            " n.ingested_at as ingested_at," +
+            " n.created_at as created_at, n.updated_at as updated_at LIMIT 1";
+          const fbResult = db.execute(fbQuery);
+          if (fbResult.rows.length > 0) {
+            const entity = fbResult.rows[0];
+            const response: Record<string, unknown> = { entity, matched_by: "semantic" };
+            log("info", "Recall (semantic): " + concept + " -> " + hits[0].name);
+            return {
+              content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
+            };
+          }
+        }
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ message: "Concept " + JSON.stringify(concept) + " not found" }, null, 2),
+          }],
+        };
+      }).catch((e) => {
+        log("debug", "Semantic fallback failed for " + concept + ":", e);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({ message: "Concept " + JSON.stringify(concept) + " not found" }, null, 2),
+          }],
+        };
+      });
     }
-
     const entity = result.rows[0];
     const response: Record<string, unknown> = { entity };
 
@@ -902,6 +960,11 @@ function handleForget(args: Record<string, unknown>) {
       };
     }
 
+    // Remove from semantic search index before deleting
+    removeFromIndex(id).catch((err) =>
+      log('warn', `Failed to remove "${concept}" from index:`, err)
+    );
+
     // SparrowDB does NOT support DETACH DELETE — delete relationships first, then node.
     // Note: SparrowDB has a known bug where relationship deletion does not properly
     // decrement the internal edge counter. If node deletion fails, we leave the node
@@ -947,6 +1010,50 @@ function handleForget(args: Record<string, unknown>) {
       isError: true,
     };
   }
+}
+
+function handleSemanticSearch(args: Record<string, unknown>) {
+  const query = typeof args.query === 'string' ? args.query : '';
+  if (!query) {
+    return Promise.resolve({
+      content: [{ type: 'text', text: JSON.stringify({ error: 'query is required' }, null, 2) }],
+      isError: true,
+    });
+  }
+
+  const limit = typeof args.limit === 'number' ? args.limit : 10;
+
+  return semanticSearch(query, Math.min(limit, 50))
+    .then((results) => ({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            {
+              query,
+              total_results: results.length,
+              results: results.map((r) => ({
+                id: r.id,
+                name: r.name,
+                category: r.category,
+                score: Math.round(r.score * 100) / 100,
+                content_preview: (r.content || '').substring(0, 200),
+              })),
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    }))
+    .catch((err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      log('error', 'Semantic search failed:', message);
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
+        isError: true,
+      };
+    });
 }
 
 function handleList(args: Record<string, unknown>) {
@@ -2015,7 +2122,10 @@ function handleGetSchema(args: Record<string, unknown>) {
 
 // ---------------------------------------------------------------------------
 
-const dbPath = process.env.DB_PATH ?? './data/graph.db';
+// Default location when DB_PATH env var is not set.
+// The MCP config should set DB_PATH via ${workspaceRoot} placeholder for reliability.
+const defaultDbPath = resolve(process.cwd(), '.spire', 'graph-memory');
+const dbPath = process.env.DB_PATH ?? defaultDbPath;
 let db: InstanceType<typeof SparrowDB>;
 
 async function main() {
@@ -2024,6 +2134,16 @@ async function main() {
 
   // Initialise the database
   db = initDB(dbPath);
+
+  // Initialize semantic search (non-blocking, runs in background)
+  initializeEmbedder().catch((err) =>
+    log('warn', 'Embedding model not available — semantic search disabled:', err)
+  );
+  initializeOrama().then(() => {
+    return backfillIndex(db);
+  }).catch((err) =>
+    log('warn', 'Orama index init failed — semantic search disabled:', err)
+  );
 
   // Wire viewer routes
   setDb(db);

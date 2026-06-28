@@ -266,6 +266,7 @@ class McpServerConnection {
       const env = { ...process.env, ...this.config.env };
       this.process = spawn(this.config.command!, this.config.args || [], {
         env,
+        cwd: this.config.cwd,
         stdio: ['pipe', 'pipe', 'pipe']
       });
 

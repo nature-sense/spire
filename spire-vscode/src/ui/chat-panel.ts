@@ -78,6 +78,20 @@ export class SpireChatPanel {
     this.panel.webview.onDidReceiveMessage(async (message) => {
       try {
         switch (message.type) {
+          case 'ready':
+            // Webview JS has initialised — restore conversation history.
+            // Parse markdown for assistant messages (stored as raw markdown).
+            if (this.conversationHistory.length > 0) {
+              const parsedMessages = this.conversationHistory.map(msg => ({
+                ...msg,
+                content: msg.role === 'assistant' ? marked.parse(msg.content) : msg.content
+              }));
+              this.postMessage({
+                type: 'restoreConversation',
+                messages: parsedMessages
+              });
+            }
+            break;
           case 'ask':
             await this.handleAsk(message.content);
             break;

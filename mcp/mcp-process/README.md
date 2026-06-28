@@ -77,11 +77,12 @@ Add this to your MCP client settings (Cline, Claude Desktop, etc.):
 ```json
 {
   "processId": "abc123",
-  "tail": 20
+  "tail": 20,
+  "since": 1700000000000
 }
 ```
 
-*Returns the last 20 lines from stdout and stderr.*
+*Returns the last 20 lines from stdout and stderr. The `since` parameter (Unix ms timestamp) returns all output captured after that time (note: per-line timestamps are not tracked; if `since` is before process start, all output is returned).*
 
 ### Kill a process
 

@@ -2,7 +2,7 @@ export interface EntityNode {
   id: string;
   name: string;
   details: string;
-  type: 'code' | 'project' | 'person' | 'memory' | 'concept';
+  type: 'code' | 'project' | 'person' | 'memory' | 'concept' | 'documentation';
   category?: string;
   status?: string;
   goal?: string;
@@ -12,7 +12,7 @@ export interface EntityNode {
   source: string;
   source_version?: string;
   ingested_at: string;
-  language?: 'python' | 'cpp' | 'dart';
+  language?: 'python' | 'cpp' | 'dart' | 'markdown' | 'typescript';
   file_path?: string;
   signature?: string;
   body_preview?: string;

@@ -460,10 +460,11 @@ Parameters:
                                      (e.g. "Fix all", "Organize imports",
                                       "quickfix", "refactor", "source")
   only      (string, optional)     — If "auto", only applies actions with
-                                     `isPreferred` set (safe automatic fixes)
+                                      \`isPreferred\` set (safe automatic fixes)
   line      (number, optional)     — Only get actions for a specific line (1-based)
 
-Returns a list of applied actions with their titles.`,
+Returns a list of applied actions with their titles.
+`,
     parameters: {
       type: 'object',
       properties: {

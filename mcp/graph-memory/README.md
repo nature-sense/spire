@@ -6,22 +6,34 @@ An MCP (Model Context Protocol) server that uses **SparrowDB** as an embedded gr
 
 ### Core Tools (CRUD)
 - **`remember`** — Store concepts, facts, and their relationships in a graph
-- **`recall`** — Retrieve stored concepts with optional related entities
+- **`recall`** — Retrieve stored concepts with optional related entities; falls back to semantic search on miss
 - **`forget`** — Remove concepts (and their relationships) from the graph
 - **`list`** — Browse all stored concepts, optionally filtered by category
 
-### Semantic Tools (v0.2.0+)
+### Semantic Tools
 - **`link`** — Create typed relationships between concepts (e.g., `DEPENDS_ON`, `LEADS`, `BLOCKS`)
 - **`project_status`** — Get a structured status report for any project concept
 - **`whats_blocking`** — Find all dependencies (up to 2 hops deep) of a concept
 - **`summarize`** — Aggregate summary of the knowledge graph with category breakdowns and relationship counts
 
-### Day 0 Graph Tools (v0.3.0+)
+### Graph Query Tools
 - **`query_knowledge_graph`** — Query the graph using natural language or Cypher
 - **`find_shortest_path`** — BFS path finding between any two concepts
 - **`get_node_neighbors`** — Traverse neighbors with depth and relationship filtering
 - **`get_node_properties`** — Retrieve all or selected properties of a concept
 - **`get_all_nodes`** — List all concepts with category filtering and offset pagination
+
+### Schema & Introspection
+- **`get_schema`** — Introspect the graph schema: node properties, relationship types, and constraints with optional type-level filtering
+
+### Semantic Search
+- **`semantic_search`** — Search the knowledge graph by semantic meaning using embedding similarity (powered by Orama + Xenova Transformers.js)
+
+### Code Import
+- **`import_file`** — Import Python, C/C++, Dart, TypeScript, or Markdown source files into the graph, extracting functions, classes, structs, enums, namespaces, imports, and markdown sections as typed nodes with relationships
+
+### Graph Viewer
+- **Embedded HTTP viewer** — Visualize the knowledge graph at `http://localhost:{VIEWER_PORT}/graph` (default port 3000)
 
 ## Quick Start
 
@@ -42,7 +54,7 @@ The server is configured via environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DB_PATH` | `./data/graph.db` | Path to the SparrowDB database file |
+| `DB_PATH` | `<cwd>/.spire/graph-memory` | Path to the SparrowDB database file (resolved relative to the process's current working directory) |
 | `LOG_LEVEL` | `info` | Logging verbosity: `debug`, `info`, `warn`, `error` |
 | `VIEWER_PORT` | `3000` | Port for the graph viewer HTTP server |
 
@@ -56,8 +68,8 @@ Add this to your MCP client settings (e.g., Cline's `cline_mcp_settings.json` or
     "graph-memory": {
       "command": "node",
       "args": ["/path/to/graph-memory-mcp/dist/index.js"],
+      "cwd": "${workspaceRoot}",
       "env": {
-        "DB_PATH": "/path/to/data/graph.db",
         "VIEWER_PORT": "4000"
       }
     }
@@ -124,7 +136,9 @@ Create a typed relationship between two existing concepts.
 }
 ```
 
-Valid relation types: `DEPENDS_ON`, `LEADS`, `INSPIRED_BY`, `BLOCKS`, `RELATED_TO`, `MENTIONS`, `CREATED_BY`
+Valid relation types: `DEPENDS_ON`, `LEADS`, `INSPIRED_BY`, `BLOCKS`, `RELATED_TO`, `MENTIONS`, `CREATED_BY`, `SUPERSEDED_BY`
+
+An optional `evidence` field can be supplied to reference a citation or file path justifying the relationship.
 
 ### `project_status`
 
@@ -215,6 +229,44 @@ List all concepts with optional category filtering and offset pagination.
 }
 ```
 
+### `get_schema`
+
+Inspect the graph schema — returns node properties with types, valid relationship types, and constraints. Optionally filter by entity type for property recommendations.
+
+```json
+{
+  "entity_type": "project"
+}
+```
+
+### `semantic_search`
+
+Search the graph by semantic meaning using embedding similarity. Ideal for natural-language queries or when you're unsure of the exact concept name.
+
+```json
+{
+  "query": "quantum computing advances",
+  "limit": 10
+}
+```
+
+### `import_file`
+
+Import a source file into the graph, extracting code structure as typed nodes and relationships. Supports **Python** (`.py`), **C/C++** (`.cpp`, `.cc`, `.cxx`, `.hpp`, `.h`), **Dart** (`.dart`), **TypeScript/TSX** (`.ts`, `.tsx`), and **Markdown** (`.md`).
+
+```json
+{
+  "file_path": "/path/to/project/src/main.py"
+}
+```
+
+The importer extracts:
+- Functions and methods with signatures, line ranges, and body previews
+- Classes with inheritance relationships
+- Structs, enums, and namespaces (C/C++/Dart)
+- Imports between files (tracked as `IMPORTS` relationships)
+- Markdown sections with heading hierarchies
+
 ## Testing
 
 Two test clients are included to verify the server works end-to-end:
@@ -251,9 +303,26 @@ npx tsx test/test-tools.ts
 ```
 graph-memory-mcp/
 ├── src/
-│   └── index.ts          # MCP server with all tool implementations
-├── dist/                 # Compiled JavaScript (generated)
-├── test-client.js        # End-to-end test script
+│   ├── index.ts                  # MCP server with all 16 tool implementations
+│   ├── importers/                # Language-specific code importers
+│   │   ├── pythonImporter.ts     # Python AST importer (via tree-sitter-python)
+│   │   ├── typescriptImporter.ts # TypeScript/TSX importer (via tree-sitter-typescript)
+│   │   ├── cppImporter.ts        # C/C++ importer (via tree-sitter-cpp)
+│   │   ├── dartImporter.ts       # Dart importer (via @plurnk/plurnk-mimetypes-grammar-dart)
+│   │   └── markdownImporter.ts   # Markdown section importer
+│   ├── tools/
+│   │   └── importFileHelper.ts   # File routing logic for import_file tool
+│   ├── services/
+│   │   ├── orama-service.ts      # Semantic search index (Orama)
+│   │   └── embedding-service.ts  # Text embeddings (Xenova Transformers.js)
+│   ├── viewer/
+│   │   ├── index.ts              # HTTP server for graph visualization
+│   │   ├── routes.ts             # Graph data API endpoints
+│   │   └── static/               # Frontend assets (HTML, JS, CSS)
+│   └── types/
+│       └── import.ts             # Shared type definitions for importers
+├── dist/                         # Compiled JavaScript (generated)
+├── test-client.js                # End-to-end test script
 ├── package.json
 ├── tsconfig.json
 ├── .env.example
@@ -262,11 +331,25 @@ graph-memory-mcp/
 
 ## API
 
-This is an MCP server — it communicates via **JSON-RPC over stdio**. There is no HTTP server, no REST API, and no Docker required. It's designed to work as a plugin for any MCP-compatible client.
+This is an MCP server — it communicates via **JSON-RPC over stdio**. There is no REST API and no Docker required. It's designed to work as a plugin for any MCP-compatible client.
+
+In addition to the stdio MCP transport, the server starts an **embedded HTTP server** for the [Graph Viewer](#graph-viewer), available at `http://localhost:{VIEWER_PORT}/graph`.
 
 ## How It Works
 
 Each concept is stored as an `Entity` node in SparrowDB with properties like `id`, `name`, `details`, `category`, and timestamps. When a `related_to` relationship is specified, a `RELATED_TO` edge is created between the two entity nodes. The `id` property is a URL-safe slug derived from the concept name, used for efficient lookups and deduplication.
+
+### Semantic Search
+
+On startup, the server initialises an **Orama** full-text + vector index. When concepts are stored via `remember`, they are automatically indexed. The `semantic_search` tool uses **Xenova Transformers.js** to compute embeddings and find the most relevant concepts by cosine similarity. If initialization fails (e.g., no model available), semantic search gracefully degrades and logs a warning.
+
+### Code Import
+
+The `import_file` tool uses **tree-sitter** parsers to parse source files, extract syntactic constructs (functions, classes, structs, enums, namespaces, imports, markdown sections), and creates typed Entity nodes with `source: 'python_ast'`, `'cpp_clang'`, `'dart_analyzer'`, `'typescript_ast'`, or `'markdown'`. Relationships such as `DEFINES`, `INHERITS_FROM`, `CONTAINS`, and `IMPORTS` are created between nodes to preserve the code structure in the graph.
+
+### Graph Viewer
+
+The embedded viewer serves an interactive D3.js-based graph visualization. Access it at `http://localhost:{VIEWER_PORT}/graph` to browse nodes and relationships visually.
 
 ## Limitations
 

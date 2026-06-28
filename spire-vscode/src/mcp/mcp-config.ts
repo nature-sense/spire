@@ -30,6 +30,7 @@ interface McpConfigFileEntry {
   args?: string[];
   url?: string;
   env?: Record<string, string>;
+  cwd?: string;
   enabled?: boolean;
 }
 
@@ -74,6 +75,9 @@ function resolvePlaceholders(
           srv.env[key] = replace(val);
         }
       }
+    }
+    if (srv.cwd) {
+      srv.cwd = replace(srv.cwd);
     }
   }
 }
@@ -174,6 +178,7 @@ function toMcpServerConfig(entry: McpConfigFileEntry): McpServerConfig {
     args: entry.args,
     url: entry.url,
     env: entry.env,
+    cwd: entry.cwd,
     enabled: entry.enabled !== false,
   };
 }

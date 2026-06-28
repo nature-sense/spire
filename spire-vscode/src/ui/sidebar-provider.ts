@@ -56,11 +56,16 @@ export class SpireSidebarProvider implements vscode.WebviewViewProvider {
       try {
         switch (message.type) {
           case 'ready':
-            // Webview JS has initialised — now safe to restore conversation history
+            // Webview JS has initialised — now safe to restore conversation history.
+            // Parse markdown for assistant messages before restoring (they are stored as raw markdown).
             if (this._conversationHistory.length > 0) {
+              const parsedMessages = this._conversationHistory.map(msg => ({
+                ...msg,
+                content: msg.role === 'assistant' ? marked.parse(msg.content) : msg.content
+              }));
               webviewView.webview.postMessage({
                 type: 'restoreConversation',
-                messages: this._conversationHistory
+                messages: parsedMessages
               });
             }
             break;

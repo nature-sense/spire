@@ -82,6 +82,9 @@ For example, with Cline, add this to your MCP configuration:
 | `show_input_box`     | Shows an input box and returns user input      |
 | `run_command`        | Executes any VS Code command                   |
 | `search_symbols`     | Searches for symbols in the workspace         |
+| `find_references`    | Find all references to a symbol at a location  |
+| `get_completions`    | Get code completion items at a location        |
+| `apply_code_action`  | Apply a code action (quick fix, refactor)      |
 
 ## JSON-RPC Protocol
 
