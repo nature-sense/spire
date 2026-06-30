@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import * as vscode from 'vscode';
 import { SpireSidebarProvider } from './ui/sidebar-provider';
 import { initMemoryBank } from './context/memoryBank';
@@ -15,6 +16,8 @@ import { McpClient } from './mcp/mcp-client';
 import { McpToolAdapter } from './mcp/mcp-tool-adapter';
 import { registerMetaTools } from './tools/meta-tools';
 import { registerVSCodeTools } from './tools/vscode-tools';
+import { registerMemoryTools } from './tools/memory-tools';
+import { IMemoryGraph, IGraphDatabase, IVectorIndex } from './core/interfaces/memory';
 
 import { DirectWorkflow } from './orchestration/workflows/direct';
 import { ReActWorkflow } from './orchestration/workflows/react';
@@ -26,11 +29,13 @@ import { Tool } from './core/models/tool';
 import { McpManager } from './mcp/mcp-manager';
 import { McpObservability } from './monitoring/mcp-observability';
 import { McpStatusBar } from './ui/mcp-status-bar';
-import { McpDashboardProvider } from './ui/mcp-dashboard';
 
 // ── Graph Prompt Augmentation imports ────────────────────────────
 import { GraphPromptAugmenter } from './augmenter/GraphPromptAugmenter';
-import { HardCodedToolProvider } from './providers/HardCodedToolProvider';
+import { GraphQueryProvider } from './providers/GraphQueryProvider';
+import { SessionProvider } from './providers/SessionProvider';
+import { CompositeProvider } from './providers/CompositeProvider';
+import { SqlitePersistence } from './persistence/SqlitePersistence';
 
 let provider: SpireSidebarProvider;
 let orchestrator: Orchestrator;
@@ -42,15 +47,45 @@ let mcpToolAdapter: McpToolAdapter;
 let mcpManager: McpManager;
 let mcpObservability: McpObservability;
 let mcpStatusBar: McpStatusBar;
-let mcpDashboardProvider: McpDashboardProvider;
 
 // ── Graph Prompt Augmentation ────────────────────────────────
 let graphAugmenter: GraphPromptAugmenter;
 
+// ── Persistence ──────────────────────────────────────────────
+let persistence: SqlitePersistence;
+let persistenceDispose: (() => void) | null = null;
+let memoryGraph: IMemoryGraph;
+let graphDb: IGraphDatabase;
+let vectorIndex: IVectorIndex;
+
 export async function activate(context: vscode.ExtensionContext) {
   console.log('⛰️ Spire is now active!');
 
+  try {
+    await initializeSpire(context);
+  } catch (err) {
+    console.error('⛰️ Spire initialization failed, loading sidebar in degraded mode:', err);
+  }
+
+  // Always register the sidebar provider, even if initialization fails
+  if (!provider) {
+    provider = new SpireSidebarProvider(context, null as any, null as any, null as any, null as any, null as any);
+  }
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('spireSidebar', provider)
+  );
+
+  // Register commands that we need regardless of initialization state
+  registerEssentialCommands(context);
+
+  console.log('✅ Spire: Sidebar provider registered');
+}
+
+async function initializeSpire(context: vscode.ExtensionContext): Promise<void> {
+  console.log('⛰️ Spire initializing...');
+
   // Initialize the LLM provider via ProviderFactory
+
   const config = loadConfig();
   llmProvider = ProviderFactory.create({
     type: 'deepseek',
@@ -95,18 +130,9 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Register the MCP Dashboard webview provider
-  mcpDashboardProvider = new McpDashboardProvider(mcpManager, mcpObservability);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      McpDashboardProvider.viewType,
-      mcpDashboardProvider
-    )
-  );
-
   // Status bar
   mcpStatusBar = new McpStatusBar(mcpObservability, () => {
-    mcpDashboardProvider.reveal();
+    provider.showTab('mcp');
   });
 
   // Wire status events → status bar
@@ -131,10 +157,48 @@ export async function activate(context: vscode.ExtensionContext) {
   });
   console.log('✅ Spire: VS Code API tools registered');
 
-  // ── Initialize Graph Prompt Augmenter (Day 0 provider) ──────────
+  // ── Initialize MemoryGraph and register graph-memory tools ──────
+  const { container, TYPES, initializeContainer } = await import('./core/di/types');
+  await initializeContainer();
+  memoryGraph = container.get<IMemoryGraph>(TYPES.IMemoryGraph);
+  graphDb = container.get<IGraphDatabase>(TYPES.IGraphDatabase);
+  vectorIndex = container.get<IVectorIndex>(TYPES.IVectorIndex);
+  registerMemoryTools(orchestrator.getToolRegistry(), memoryGraph);
+  console.log('✅ Spire: Graph-memory tools registered');
+
+  // ── Initialize SQLite persistence and restore previous session ──
+  const workspaceRoot = getCurrentWorkspaceRoot();
+  if (workspaceRoot) {
+    persistence = new SqlitePersistence(workspaceRoot);
+    try {
+      const restored = await persistence.load(graphDb, vectorIndex);
+      if (restored > 0) {
+        console.log(`✅ Spire: Restored ${restored} nodes from SQLite persistence`);
+      }
+    } catch (err) {
+      console.warn('Spire: Failed to restore persisted state:', err);
+    }
+
+    // Subscribe to graph mutations for auto-save
+    persistenceDispose = persistence.subscribeToMutations(
+      graphDb,
+      vectorIndex
+    ).dispose;
+  }
+
+  // ── Initialize Graph Prompt Augmenter ───────────────────────────
+  // Compose the GraphQueryProvider (graph queries) with the
+  // SessionProvider (session management) into a single pipeline.
+  const sessionProvider = new SessionProvider({ userId: 'default-user' });
+  const compositeProvider = new CompositeProvider([
+    new GraphQueryProvider(),
+    sessionProvider,
+  ]);
+
   graphAugmenter = new GraphPromptAugmenter(
     mcpClient,
-    new HardCodedToolProvider()
+    compositeProvider,
+    memoryGraph
   );
   const augmenterInfo = graphAugmenter.getProviderInfo();
   console.log(
@@ -144,65 +208,17 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   // Wire the augmenter into the sidebar provider
-  provider = new SpireSidebarProvider(context, orchestrator, graphAugmenter);
+  // (registration happens below in activate() to avoid duplicate registration)
+  provider = new SpireSidebarProvider(context, orchestrator, graphAugmenter, mcpManager, mcpObservability, memoryGraph);
 
-  // Register as a webview view provider
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      'spireSidebar',
-      provider
-    )
-  );
-
-  // Commands
-  context.subscriptions.push(
-    vscode.commands.registerCommand('spire.openChat', () => {
-      provider.reveal();
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('spire.clearHistory', () => {
-      provider.reveal();
-      provider.postMessage({ type: 'clear' });
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('spire.initMemoryBank', async () => {
-      const config = loadConfig();
-      await initMemoryBank(config.workspaceRoot || undefined);
-      vscode.window.showInformationMessage('✅ Memory Bank initialized!');
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('spire.loadContext', () => {
-      provider.reveal();
-      provider.postMessage({ type: 'loadContext' });
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand('spire.setApiKey', async () => {
-      const key = await vscode.window.showInputBox({
-        prompt: 'Enter your DeepSeek API key',
-        password: true,
-        placeHolder: 'sk-...'
-      });
-      
-      if (key) {
-        await vscode.workspace.getConfiguration('spire').update('apiKey', key, true);
-        vscode.window.showInformationMessage('✅ API key saved successfully!');
-        provider.reveal();
-      }
-    })
-  );
+  // Attach the session provider to the sidebar for session lifecycle management
+  provider.setSessionProvider(sessionProvider);
 
   // ── MCP Dashboard commands ──────────────────────────────────────
+
   context.subscriptions.push(
     vscode.commands.registerCommand('spire.showMCPDashboard', () => {
-      mcpDashboardProvider.reveal();
+      provider.showTab('mcp');
     })
   );
 
@@ -321,7 +337,65 @@ function registerSpireMetaTools(
   console.log('✅ Spire: Meta-tools registered');
 }
 
-export function deactivate() {
+/**
+ * Register essential commands that should always be available even in degraded mode.
+ */
+function registerEssentialCommands(context: vscode.ExtensionContext): void {
+  context.subscriptions.push(
+    vscode.commands.registerCommand('spire.openChat', () => {
+      provider.reveal();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('spire.clearHistory', () => {
+      provider.reveal();
+      provider.postMessage({ type: 'clear' });
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('spire.setApiKey', async () => {
+      const key = await vscode.window.showInputBox({
+        prompt: 'Enter your DeepSeek API key',
+        password: true,
+        placeHolder: 'sk-...'
+      });
+      if (key) {
+        await vscode.workspace.getConfiguration('spire').update('apiKey', key, true);
+        vscode.window.showInformationMessage('✅ API key saved successfully!');
+        provider.reveal();
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('spire.loadContext', () => {
+      provider.reveal();
+      provider.postMessage({ type: 'loadContext' });
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('spire.initMemoryBank', async () => {
+      const config = loadConfig();
+      await initMemoryBank(config.workspaceRoot || undefined);
+      vscode.window.showInformationMessage('✅ Memory Bank initialized!');
+    })
+  );
+}
+
+export async function deactivate() {
+  // Save memory graph state to SQLite before shutting down
+  if (persistence && graphDb && vectorIndex) {
+    try {
+      await persistence.save(graphDb, vectorIndex);
+      console.log('✅ Spire: Memory graph saved to SQLite');
+    } catch (err) {
+      console.warn('Spire: Failed to save memory graph:', err);
+    }
+  }
+
   if (mcpStatusBar) {
     mcpStatusBar.dispose();
   }

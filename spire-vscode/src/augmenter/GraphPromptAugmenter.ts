@@ -1,4 +1,5 @@
 import { IMcpClient } from '../core/interfaces/mcp-client.js';
+import { IMemoryGraph } from '../core/interfaces/memory.js';
 import {
   ToolCallProvider,
   ProviderDecision,
@@ -20,22 +21,96 @@ import {
  * FLOW:
  *   User Prompt → Provider.analyzePrompt() → MCP.callTool() → Prompt + Context → LLM
  *
+ * POST-LLM:
+ *   storeExchange() → stores the user/assistant exchange as a conversation node
+ *   in the local knowledge graph, linked to the current session if one exists.
+ *
  * This is a pure middleware — the existing orchestrator/workflow/LLM pipeline
  * is untouched. The augmentation just enriches the input text.
  */
 export class GraphPromptAugmenter {
   private provider: ToolCallProvider;
   private mcpClient: IMcpClient;
+  private memoryGraph: IMemoryGraph;
   private config: AugmenterConfig;
 
   constructor(
     mcpClient: IMcpClient,
     provider: ToolCallProvider,
+    memoryGraph: IMemoryGraph,
     config?: Partial<AugmenterConfig>
   ) {
     this.mcpClient = mcpClient;
     this.provider = provider;
+    this.memoryGraph = memoryGraph;
     this.config = { ...DEFAULT_AUGMENTER_CONFIG, ...config };
+  }
+
+  /**
+   * Store a user/assistant exchange in the local knowledge graph as a conversation node.
+   *
+   * This is called AFTER the LLM responds, so the exchange is persisted for
+   * future semantic search. If a session is active, the conversation is linked
+   * to it via session_worked_on.
+   *
+   * Uses the embedded MemoryGraph directly (not MCP) — the graph-memory MCP
+   * server is legacy and no longer used.
+   *
+   * @param params.originalPrompt - The user's original input
+   * @param params.llmResponse - The assistant's response
+   * @param params.sessionId - Optional session ID to link the conversation to
+   * @returns true if the exchange was stored successfully
+   */
+  async storeExchange(params: {
+    originalPrompt: string;
+    llmResponse: string;
+    sessionId?: string;
+  }): Promise<boolean> {
+    if (!this.config.enabled) {
+      return false;
+    }
+
+    try {
+      const { originalPrompt, llmResponse, sessionId } = params;
+
+      // Build a description that captures the exchange for embedding
+      const description = `User: ${originalPrompt}\n\nAssistant: ${llmResponse}`;
+      const title = originalPrompt.substring(0, 80);
+
+      // Store as a conversation node in the local MemoryGraph
+      const conversationNode = await this.memoryGraph.storeNode({
+        type: 'conversation',
+        name: title,
+        description: description,
+        properties: {
+          originalPrompt,
+          llmResponse,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      // If we have a session, link the conversation to it via session_worked_on
+      if (sessionId) {
+        await this.memoryGraph.createRelationship({
+          type: 'session_worked_on',
+          fromId: conversationNode.id,
+          toId: sessionId,
+          properties: { timestamp: new Date().toISOString() },
+        });
+      }
+
+      console.log(
+        `[GraphPromptAugmenter] ✅ Stored conversation node "${conversationNode.id}" (${description.length} chars)` +
+        (sessionId ? ` linked to session="${sessionId}"` : '')
+      );
+      return true;
+    } catch (error) {
+      console.error(
+        '[GraphPromptAugmenter] ❌ Error storing conversation:',
+        (error as Error).message
+      );
+      return false;
+    }
   }
 
   /**

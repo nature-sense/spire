@@ -20,9 +20,14 @@ export interface IWorkflow {
 }
 
 
+export type StatusUpdate =
+  | { type: 'thinking' }
+  | { type: 'tool_call'; toolName: string; args: Record<string, any> };
+
 export interface WorkflowOptions {
   maxIterations?: number;
   temperature?: number;
+  onStatusUpdate?: (status: StatusUpdate) => void;
 }
 
 export const IWorkflow = Symbol('IWorkflow');

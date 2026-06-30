@@ -1,5 +1,5 @@
 import { ToolCallProvider } from './types.js';
-import { HardCodedToolProvider } from './HardCodedToolProvider.js';
+import { GraphQueryProvider } from './GraphQueryProvider.js';
 
 /**
  * Factory for creating ToolCallProvider instances.
@@ -16,7 +16,7 @@ export class ProviderFactory {
   static create(type: 'hardcoded' | 'llm' | 'fine-tuned'): ToolCallProvider {
     switch (type) {
       case 'hardcoded':
-        return new HardCodedToolProvider();
+        return new GraphQueryProvider();
 
       case 'llm':
         throw new Error(

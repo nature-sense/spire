@@ -1,1 +1,0 @@
-var fs = require('fs'); var content = []; content.push(`// Python file importer using web-tree-sitter import { EntityNode, Relationship, ImportResult } from '../types/import.js'; import { isoTimestamp, slug

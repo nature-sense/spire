@@ -13,14 +13,14 @@ export class SpireSidebarProvider implements vscode.WebviewViewProvider {
   private _orchestrator?: Orchestrator;
   private _provider?: DeepSeekProvider;
 
-  constructor(private readonly _extensionContext: vscode.ExtensionContext) {
+  constructor() {
     console.log('SpireSidebarProvider constructor called');
   }
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
-    context: vscode.WebviewViewResolveContext,
-    token: vscode.CancellationToken
+    _context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken
   ): void {
     console.log('SpireSidebarProvider.resolveWebviewView called');
 
@@ -158,7 +158,6 @@ export class SpireSidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private async _handleLoadContext(webviewView: vscode.WebviewView): Promise<void> {
-    const config = loadConfig();
     const memoryBank = await loadMemoryBank();
     const clineRules = await loadClineRules();
 
@@ -221,6 +220,11 @@ export class SpireSidebarProvider implements vscode.WebviewViewProvider {
     s += '.message.user { align-self: flex-end; background: var(--vscode-button-background); color: var(--vscode-button-foreground); }\n';
     s += '.message.assistant { align-self: flex-start; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); }\n';
     s += '.message .label { font-size: 10px; font-weight: 600; opacity: 0.6; display: block; margin-bottom: 2px; }\n';
+    s += '.thinking { display: flex; align-items: center; gap: 4px; }\n';
+    s += '.thinking-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--vscode-descriptionForeground); animation: thinkPulse 1.4s ease-in-out infinite; }\n';
+    s += '.thinking-dot:nth-child(2) { animation-delay: 0.2s; }\n';
+    s += '.thinking-dot:nth-child(3) { animation-delay: 0.4s; }\n';
+    s += '@keyframes thinkPulse { 0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }\n';
     s += '.input-area { display: flex; gap: 6px; padding: 6px 0 0; border-top: 1px solid var(--vscode-panel-border); flex-shrink: 0; }\n';
     s += '.input-area textarea { flex: 1; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; padding: 6px 8px; font-size: 13px; font-family: var(--vscode-font-family); resize: none; outline: none; min-height: 32px; max-height: 80px; line-height: 1.4; }\n';
     s += '.input-area textarea:focus { border-color: var(--vscode-focusBorder); }\n';
@@ -279,7 +283,23 @@ export class SpireSidebarProvider implements vscode.WebviewViewProvider {
     s += '  var input = document.getElementById("userInput");\n';
     s += '  var sendBtn = document.getElementById("sendBtn");\n';
     s += '  var statusBar = document.getElementById("statusBar");\n';
+    s += '  var thinkingEl = null;\n';
+    s += '  function addThinking() {\n';
+    s += '    var d = document.createElement("div");\n';
+    s += '    d.className = "message assistant thinking";\n';
+    s += '    d.innerHTML = \'<span class="label">Spire</span>Thinking\' + \'<span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-dot"></span>\';\n';
+    s += '    chat.appendChild(d);\n';
+    s += '    thinkingEl = d;\n';
+    s += '    chat.scrollTop = chat.scrollHeight;\n';
+    s += '  }\n';
+    s += '  function removeThinking() {\n';
+    s += '    if (thinkingEl) {\n';
+    s += '      thinkingEl.remove();\n';
+    s += '      thinkingEl = null;\n';
+    s += '    }\n';
+    s += '  }\n';
     s += '  function addMsg(cls, html) {\n';
+    s += '    removeThinking();\n';
     s += '    var d = document.createElement("div");\n';
     s += '    d.className = cls;\n';
     s += '    d.innerHTML = html;\n';
@@ -298,6 +318,7 @@ export class SpireSidebarProvider implements vscode.WebviewViewProvider {
     s += '    if (!text) return;\n';
     s += '    input.value = "";\n';
     s += '    addMsg("message user", "<span class=\\"label\\">You</span>" + text.replace(/\\n/g, "<br>"));\n';
+    s += '    addThinking();\n';
     s += '    statusBar.textContent = "Sending...";\n';
     s += '    vs.postMessage({ type: "ask", content: text });\n';
     s += '  });\n';

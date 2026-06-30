@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Message } from '../core/models/message';
 import { IOrchestrator } from '../core/interfaces/orchestrator';
-import { getChatHtml } from './chat-html';
+import { getSidebarHtml } from './sidebar-html';
 import { marked } from 'marked';
 
 // ── Graph Prompt Augmentation ──────────────────────────────────
@@ -57,7 +57,7 @@ export class SpireChatPanel {
       }
     );
 
-    this.panel.webview.html = getChatHtml();
+    this.panel.webview.html = getSidebarHtml();
     this.setupMessageHandlers();
 
     this.panel.onDidDispose(() => {
@@ -138,7 +138,12 @@ export class SpireChatPanel {
 
     try {
       // Process through orchestrator (with augmented prompt if available)
-      const result = await this.orchestrator.handleUserRequest(augmentedText);
+      // Wire status updates to the webview in real-time
+      const result = await this.orchestrator.handleUserRequest(augmentedText, {
+        onStatusUpdate: (status) => {
+          this.postMessage({ type: 'statusUpdate', status });
+        }
+      });
       // Store original user text in conversation history (not augmented)
       this.conversationHistory.push({ role: 'user', content: text });
       this.conversationHistory.push({ role: 'assistant', content: result.content });

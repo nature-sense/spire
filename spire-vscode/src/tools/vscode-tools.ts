@@ -16,7 +16,7 @@ export interface VSCodeToolDependencies {
  * callable tools — enabling the AI to interact with the editor directly.
  */
 export function registerVSCodeTools(deps: VSCodeToolDependencies): void {
-  const { registerTool, extensionContext } = deps;
+  const { registerTool } = deps;
 
   // ---------------------------------------------------------------
   // 1. open_editor - Open a file at an optional line number
@@ -332,7 +332,7 @@ Common commands:
         args: {
           type: 'array',
           description: 'Optional arguments to pass to the command',
-          items: { type: 'any' },
+          items: {},
         },
       },
       required: ['command'],
@@ -710,8 +710,7 @@ Parameters:
           description: 'The configuration section (e.g. "editor.fontSize", "files.autoSave")',
         },
         value: {
-          type: 'any',
-          description: 'The value to set',
+          description: 'The value to set (any JSON-compatible value: string, number, boolean, object, array, null)',
         },
         target: {
           type: 'string',

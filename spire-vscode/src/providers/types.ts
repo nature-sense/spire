@@ -6,7 +6,8 @@
  * the retrieved graph context before passing it to the LLM.
  *
  * STRATEGY PATTERN:
- * - HardCodedToolProvider (Day 0): keyword matching
+ * - GraphQueryProvider (Day 0): keyword matching for graph queries
+ * - SessionProvider (Day 0): keyword/regex matching for session management
  * - LLMToolProvider (future): LLM-based tool selection
  * - FineTunedToolProvider (future): Graph-ToolFormer fine-tuned model
  */

@@ -88,7 +88,8 @@ export class Orchestrator implements IOrchestrator {
         this.toolRegistry,
         {
           maxIterations: options?.maxIterations,
-          temperature: options?.temperature
+          temperature: options?.temperature,
+          onStatusUpdate: options?.onStatusUpdate
         }
       );
       return result;

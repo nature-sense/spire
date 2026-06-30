@@ -7,13 +7,18 @@
 ```
 spire/
 ├── spire-vscode/            # VS Code extension (TypeScript)
-│   ├── src/                 # Source code (compiled → out/)
+│   ├── src/
+│   │   ├── augmenter/       # GraphPromptAugmenter — stores exchanges as graph nodes
+│   │   ├── memory/          # Local MemoryGraph, GraphDatabase, VectorIndex, Embedder
+│   │   ├── orchestration/   # Agentic, Direct, and ReAct workflow engines
+│   │   ├── providers/       # SessionProvider, CompositeProvider, GraphQueryProvider
+│   │   ├── ui/              # Sidebar webview (Chat, MCP, Graph tabs)
+│   │   └── persistence/     # SQLite persistence layer
 │   ├── memory-bank/         # Cross-session context files
 │   └── resources/           # Icons, assets
 │
 └── mcp/                     # Model Context Protocol servers
     ├── vsc-bridge/          # VS Code ↔ MCP bridge (IPC socket)
-    ├── graph-memory/        # Persistent graph memory (SparrowDB)
     ├── mcp-search/          # Codebase search tools
     ├── mcp-process/         # Process management tools
     └── mcp-git/             # Git operations tools
@@ -22,6 +27,8 @@ spire/
 ## Key Features
 
 - **🤖 DeepSeek v4 Integration** — Chat with DeepSeek v4's native thinking/reasoning capabilities
+- **🗺️ Knowledge Graph** — Local in-process graph memory that tracks sessions, conversations, entities, decisions, blockers, milestones, and more. Every exchange is stored as a node with typed relationships.
+- **📊 Graph Visualization** — Interactive force-directed graph in the sidebar with zoom, pan, search/filter, and a node detail panel showing full properties.
 - **🔌 MCP-Native Design** — Extend functionality via any MCP-compatible server
 - **🧠 Memory Bank** — Persistent cross-session context for long-running projects
 - **🛠️ Multiple Workflow Modes** — Agentic, Direct, and ReAct strategies
@@ -52,14 +59,15 @@ Or run the **Spire: Set API Key** command from the command palette.
 
 Click the Spire icon in the activity bar or run **Spire: Open Chat**.
 
+### 4. Explore the Graph
+
+Switch to the **Graph** tab in the sidebar to see your session and conversation history visualized as an interactive node graph. Click any node to inspect its properties.
+
 ## MCP Servers
 
 Each MCP server under `mcp/` is independently runnable:
 
 ```bash
-# Graph Memory
-cd mcp/graph-memory && npm install && npm start
-
 # VS Code Bridge
 cd mcp/vsc-bridge && npm install && npm run build
 
@@ -68,6 +76,8 @@ cd mcp/mcp-search && npm install && npm start
 ```
 
 Configure them via your MCP client settings (e.g., Cline, Claude Desktop).
+
+> **Note:** The `mcp/graph-memory/` server has been removed and replaced by an in-process local `MemoryGraph` within the extension itself. Graph data is now stored in SQLite and visualized directly in the sidebar.
 
 ## Development
 
@@ -79,7 +89,6 @@ npm run watch       # Watch mode
 
 # Build MCP servers
 cd mcp/vsc-bridge && npm run build
-cd mcp/graph-memory && npm run build
 ```
 
 ## License

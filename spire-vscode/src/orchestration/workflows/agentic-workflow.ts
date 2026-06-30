@@ -31,6 +31,9 @@ export class AgenticWorkflow implements IWorkflow {
     while (iteration < maxIterations) {
       iteration++;
 
+      // Emit thinking status before each LLM call
+      options?.onStatusUpdate?.({ type: 'thinking' });
+
       const response = await llm.sendMessage(messages, {
         temperature,
         tools: allTools,
@@ -53,6 +56,8 @@ export class AgenticWorkflow implements IWorkflow {
         // Execute each tool call
         for (const tc of response.toolCalls) {
           const args = JSON.parse(tc.function.arguments);
+          // Emit tool_call status before each tool execution
+          options?.onStatusUpdate?.({ type: 'tool_call', toolName: tc.function.name, args });
           const result = await tools.execute(tc.function.name, args);
 
           messages.push({

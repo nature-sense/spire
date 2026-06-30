@@ -14,7 +14,7 @@ export interface ToolResult {
 export interface JSONSchema {
   type: 'object';
   properties: Record<string, {
-    type: string;
+    type?: string;
     description?: string;
     enum?: string[];
     items?: any;

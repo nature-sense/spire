@@ -4,6 +4,7 @@ import { WorkspaceContext } from './context';
 export interface Message {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  reasoning?: string;
   toolCalls?: ToolCall[];
   toolCallId?: string;
 }
